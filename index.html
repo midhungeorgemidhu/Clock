@@ -1,1 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Time Dashboard</title>
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+            --accent-blue: #38bdf8;
+            --accent-purple: #a78bfa;
+            --dial-color: rgba(255, 255, 255, 0.08);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background: var(--bg-gradient);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 3rem 1.5rem;
+        }
+
+        header {
+            margin-bottom: 3.5rem;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.75rem;
+            font-weight: 800;
+            letter-spacing: -0.04em;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(to right, var(--accent-blue), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        header p {
+            color: var(--text-sub);
+            font-size: 1.05rem;
+            font-weight: 400;
+        }
+
+        .clock-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+            gap: 2.5rem;
+            width: 100%;
+            max-width: 1250px;
+            padding: 0 1rem;
+        }
+
+        .clock-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 28px;
+            padding: 2.25rem 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), border-color 0.3s ease;
+        }
+
+        .clock-card:hover {
+            transform: translateY(-6px);
+            border-color: rgba(56, 189, 248, 0.4);
+        }
+
+        .zone-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.25rem;
+        }
+
+        .zone-desc {
+            font-size: 0.85rem;
+            color: var(--text-sub);
+            margin-bottom: 1.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        canvas {
+            background: transparent;
+            margin-bottom: 1.75rem;
+        }
+
+        .digital-display {
+            font-size: 2.25rem;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.03em;
+            background: linear-gradient(to bottom, #ffffff 70%, #cbd5e1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .date-display {
+            font-size: 0.95rem;
+            color: var(--text-sub);
+            margin-top: 0.35rem;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>World Clock Dashboard</h1>
+        <p>Real-time high-precision global tracking</p>
+    </header>
+
+    <div class="clock-grid" id="clockDashboard"></div>
+
+    <script>
+        // Configured Timezones
+        const locations = [
+            { id: 'ist', name: 'India (IST)', zone: 'Asia/Kolkata', desc: 'New Delhi, Mumbai' },
+            { id: 'utc', name: 'Universal (UTC)', zone: 'UTC', desc: 'Greenwich Baseline' },
+            { id: 'cst', name: 'US Central (CST/CDT)', zone: 'America/Chicago', desc: 'Chicago, Dallas' },
+            { id: 'est', name: 'US Eastern (EST/EDT)', zone: 'America/New York', desc: 'New York, Miami' },
+            { id: 'pst', name: 'US Pacific (PST/PDT)', zone: 'America/Los_Angeles', desc: 'Los Angeles, Seattle' },
+            { id: 'bst', name: 'United Kingdom (BST)', zone: 'Europe/London', desc: 'London' },
+            { id: 'jst', name: 'Japan (JST)', zone: 'Asia/Tokyo', desc: 'Tokyo, Kyoto' },
+            { id: 'aest', name: 'Australia (AEST)', zone: 'Australia/Sydney', desc: 'Sydney, Melbourne' }
+        ];
+
+        const container = document.getElementById('clockDashboard');
+
+        // Dynamically populate UI structural elements
+        locations.forEach((loc, idx) => {
+            const card = document.createElement('div');
+            card.className = 'clock-card';
+            card.innerHTML = `
+                <div class="zone-title">${loc.name}</div>
+                <div class="zone-desc">${loc.desc}</div>
+                <canvas id="face-${idx}" width="170" height="170"></canvas>
+                <div class="digital-display" id="digi-${idx}">00:00:00</div>
+                <div class="date-display" id="date-${idx}">---</div>
+            `;
+            container.appendChild(card);
+        });
+
+        function runClockEngine() {
+            const timeObject = new Date();
+
+            locations.forEach((loc, idx) => {
+                try {
+                    // Extract precise timezone text formatting strings
+                    const localizedTime = timeObject.toLocaleTimeString('en-US', { timeZone: loc.zone, hour12: false });
+                    const localizedDate = timeObject.toLocaleDateString('en-US', { timeZone: loc.zone, weekday: 'short', month: 'short', day: 'numeric' });
+                    
+                    // Update layout text blocks
+                    document.getElementById(`digi-${idx}`).textContent = localizedTime;
+                    document.getElementById(`date-${idx}`).textContent = localizedDate;
+
+                    // Parse numerical time pieces for physical calculations
+                    const [hours, minutes, seconds] = localizedTime.split(':').map(Number);
+                    
+                    // Draw corresponding custom canvas
+                    renderAnalogFace(document.getElementById(`face-${idx}`), hours, minutes, seconds);
+
+                } catch (error) {
+                    console.error(`Timezone computation failed for context: ${loc.zone}`, error);
+                }
+            });
+        }
+
+        function renderAnalogFace(canvasElement, h, m, s) {
+            const ctx = canvasElement.getContext('2d');
+            const centerPoint = canvasElement.width / 2;
+            const operationalRadius = centerPoint - 6;
+
+            // Clear framework boundaries
+            ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            ctx.save();
+            ctx.translate(centerPoint, centerPoint);
+
+            // Draw outer bounding track element
+            ctx.beginPath();
+            ctx.arc(0, 0, operationalRadius, 0, 2 * Math.PI);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            // Draw clean tick marks for major hour placements (12, 3, 6, 9)
+            for (let i = 0; i < 4; i++) {
+                ctx.save();
+                ctx.rotate((i * Math.PI) / 2);
+                ctx.beginPath();
+                ctx.moveTo(0, -operationalRadius + 4);
+                ctx.lineTo(0, -operationalRadius + 12);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            // Hour vector calculations
+            const targetHourAngle = ((h % 12) * Math.PI / 6) + (m * Math.PI / 360);
+            drawPointerHand(ctx, targetHourAngle, operationalRadius * 0.48, 5, '#f8fafc');
+
+            // Minute vector calculations
+            const targetMinAngle = (m * Math.PI / 30) + (s * Math.PI / 1800);
+            drawPointerHand(ctx, targetMinAngle, operationalRadius * 0.74, 3.5, '#94a3b8');
+
+            // Second vector calculations
+            const targetSecAngle = (s * Math.PI / 30);
+            drawPointerHand(ctx, targetSecAngle, operationalRadius * 0.84, 1.5, '#38bdf8');
+
+            // Core structural anchor cap
+            ctx.beginPath();
+            ctx.arc(0, 0, 4.5, 0, 2 * Math.PI);
+            ctx.fillStyle = '#38bdf8';
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawPointerHand(ctx, angleRad, dynamicLength, structuralWidth, hexColor) {
+            ctx.save();
+            ctx.rotate(angleRad);
+            ctx.beginPath();
+            ctx.moveTo(0, 12); // subtle backweight balance
+            ctx.lineTo(0, -dynamicLength);
+            ctx.strokeStyle = hexColor;
+            ctx.lineWidth = structuralWidth;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // Run setup immediately and connect the structural ticker loop
+        runClockEngine();
+        setInterval(runClockEngine, 1000);
+    </script>
+</body>
+</html>
 
